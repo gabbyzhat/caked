@@ -1,16 +1,16 @@
 [package]
-name = "{{PROJECTNAME}}"
-version = "1.0.0"
+name = "caked"
+version = "0.0.1"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/{{USERNAME}}/{{PROJECTNAME}}"
-documentation = "https://docs.rs/{{PROJECTNAME}}"
-description = "{{DESCRIPTION}}"
+repository = "https://github.com/gabbyzhat/caked"
+documentation = "https://docs.rs/caked"
+description = "CakePHP style configuration reading and writing"
 readme = "README.md"
 edition = "2018"
 keywords = []
 categories = []
 authors = [
-    "Yoshua Wuyts <yoshuawuyts@gmail.com>"
+    "Gabriel Zhat <gabbyzhat@gmail.com>"
 ]
 
 [features]

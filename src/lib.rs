@@ -1,4 +1,4 @@
-//! {{DESCRIPTION}}
+//! CakePHP style configuration reading and writing
 //!
 //! # Examples
 //!
