@@ -1,12 +1,5 @@
 use crate::{Floating, Integral};
 
-/// A PHP configuration graph in pairset mode.
-#[derive(Debug)]
-pub struct Graph {
-    /// The variable name used in a <?php $name = [...]
-    pub name: Option<String>
-}
-
 /// A value of a node.
 #[derive(Debug)]
 pub enum Value {

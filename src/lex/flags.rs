@@ -1,35 +1,29 @@
 use std::default::Default;
 
-use enumflags2::{bitflags, make_bitflags};
-
-
-
 /// Flags for lexer.
-#[bitflags]
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum Flags {
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Flags {
     /// Use signed when possible.
-    Signed = 1 << 0,
+    pub signed: bool,
 
     /// Use f32 over f64 when possible.
-    F32 = 1 << 2,
+    pub use_f32: bool,
 
     /// Use i/u8 over size when possible.
-    I8 = 1 << 3,
+    pub use_8: bool,
 
     /// Use i/u16 over size when possible.
-    I16 = 1 << 4,
+    pub use_16: bool,
 
     /// Use i/u32 over size when possible.
-    I32 = 1 << 5,
+    pub use_32: bool,
 
     /// Use i/u64 over size when possible.
-    I64 = 1 << 6,
+    pub use_64: bool,
 }
 
 impl Default for Flags {
     fn default() -> Self {
-        make_bitflags!(Flags::{Signed | I32})
+        Self {signed: true, use_f32: false, use_8: false, use_16: false, use_32: true, use_64: false}
     }
 }

@@ -1,3 +1,5 @@
+
+
 /// A lexer token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
@@ -26,7 +28,4 @@ pub enum Token {
 
     /// Double quoted literal.
     DoubleQuote(String),
-
-    /// Heredoc literal.
-    Heredoc(String),
 }
