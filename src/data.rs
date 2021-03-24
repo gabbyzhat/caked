@@ -1,5 +1,5 @@
 /// Floating point data.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Floating {
     /// A 32-bit floating point.
     F32(f32),
@@ -8,8 +8,15 @@ pub enum Floating {
     F64(f64),
 }
 
+impl Eq for Floating {}
+impl Ord for Floating {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
 /// Integral data.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Integral {
     /// A u8.
     U8(u8),

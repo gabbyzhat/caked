@@ -91,6 +91,61 @@ pub(crate) fn feed<I: IntoIterator<Item = char>>(
                 '\\' => *s = S::SingleQuoteEscape,
                 _ => b.push(c),
             },
+            S::DoubleQuote => match c {
+                '"' => {
+                    d.push((*t, T::DoubleQuote(b.clone())));
+                    *s = S::Initial;
+                },
+                '\\' => *s = S::DoubleQuoteEscape,
+                _ => b.push(c),
+            },
+            S::Integer => match c {
+                ' ' | '\r' | '\n' | '\t' | ';' => {
+                    d.push((*t, T::Integral(b.clone())));
+                    *s = S::Initial;
+                },
+                '/' => {
+                    d.push((*t, T::Integral(b.clone())));
+                    *s = S::PrepareComment;
+                },
+                '[' => {
+                    d.push((*t, T::Integral(b.clone())));
+                    d.push((*p, T::OpenSet));
+                    *s = S::Initial;
+                },
+                ']' => {
+                    d.push((*t, T::Integral(b.clone())));
+                    d.push((*p, T::CloseSet));
+                    *s = S::Initial;
+                },
+                '=' => {
+                    d.push((*t, T::Integral(b.clone())));
+                    *s = S::PrepareAssignment;
+                },
+                '\'' => {
+                    d.push((*t, T::Integral(b.clone())));
+                    b.clear();
+                    *t = *p;
+                    *s = S::SingleQuote;
+                },
+                ',' => {
+                    d.push((*t, T::Integral(b.clone())));
+                    d.push((*p, T::Separator));
+                    *s = S::Initial;
+                },
+                '"' => {
+                    d.push((*t, T::Integral(b.clone())));;
+                    b.clear();
+                    *t = *p;
+                    *s = S::DoubleQuote;
+                },
+                '0'..='0' | 'E' | 'e' | '+' => b.push(c),
+                '-' | '.' => {
+                    b.push(c);
+                    *s = S::Decimal;
+                }
+                _ => return Err(FeedError::new(*p, *s, Some(c))),
+            },
             _ => (),
         }
     }

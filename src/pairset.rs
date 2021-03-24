@@ -1,7 +1,7 @@
 use crate::{Floating, Integral};
 
 /// A value of a node.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Value {
     /// Null.
     Null,
@@ -19,15 +19,16 @@ pub enum Value {
     Str(String),
 
     /// Set of nodes.
-    Set(Vec<Node>),
+    Set(Vec<KeyValuePair>),
 }
 
 /// A graph node.
-#[derive(Debug)]
-pub struct Node {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct KeyValuePair {
     /// The name of this node, if any.
-    pub name: Option<String>,
+    pub key: Option<String>,
 
     /// The value of this node.
     pub value: Value,
 }
+
