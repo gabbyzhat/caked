@@ -10,7 +10,7 @@ edition = "2018"
 keywords = []
 categories = []
 authors = [
-    "Gabriel Zhat <gabbyzhat@gmail.com>"
+    "Gabriel Engels <git@gabbyzhat.xyz>"
 ]
 
 [features]

@@ -8,14 +8,17 @@
 
 #![forbid(unsafe_code, future_incompatible, rust_2018_idioms)]
 #![deny(missing_debug_implementations, nonstandard_style)]
-#![warn(missing_docs, missing_doc_code_examples, unreachable_pub)]
+//#![warn(missing_docs, missing_doc_code_examples, unreachable_pub)]
 
-pub mod lex;
+pub(crate) mod lex;
 
 /// Pair-Set datra.
-pub mod pairset;
+pub(crate) mod pairset;
 
 /// Index-Set data.
-pub mod indset;
+pub(crate) mod indset;
 
-pub use lex::{Flags, Token};
+pub use pairset::{Value, KeyValuePair};
+pub fn read() {
+
+}
