@@ -12,13 +12,10 @@
 
 pub(crate) mod lex;
 
-/// Pair-Set datra.
-pub(crate) mod pairset;
+/// Key-value pair.
+pub(crate) mod kvp;
 
-/// Index-Set data.
-pub(crate) mod indset;
-
-pub use pairset::{Value, KeyValuePair};
+pub use kvp::{Value, KeyValuePair};
 pub fn read() {
 
 }

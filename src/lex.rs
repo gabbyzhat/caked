@@ -1,8 +1,92 @@
-use super::{Position, State, Token};
+use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::fmt;
+use std::fmt::Display;
 use std::result::Result;
-use std::collections::VecDeque;
+
+/// A lexer token.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Token {
+    /// A separator. (,)
+    Separator,
+    /// Assignment of value to key. (k=>v)
+    Assignment,
+
+    /// Set opening. ([)
+    OpenSet,
+
+    /// Set closing. (])
+    CloseSet,
+
+    /// Integral value.
+    Integral(String),
+
+    /// Floating point value.
+    Float(String),
+
+    /// Identifier.
+    Identifier(String),
+
+    /// Single quoted literal.
+    SingleQuote(String),
+
+    /// Double quoted literal.
+    DoubleQuote(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
+pub enum State {
+    Initial,
+    PrepareComment,
+    PrepareAssignment,
+    SingleQuote,
+    DoubleQuote,
+    Integer,
+    IntegerDecimal,
+    Identifier,
+    PrepareOpenTag,
+    PrepareCloseTag,
+    LineComment,
+    MultiLineComment,
+    MultiLineCommentPrepareExit,
+    Decimal,
+    SingleQuoteEscape,
+    DoubleQuoteEscape,
+    DoubleQuoteEscapeControl,
+    DoubleQuoteEscapeHex,
+    DoubleQuoteEscapeOctal2,
+    DoubleQuoteEscapeHexBound,
+    DoubleQuoteEscapeHex2,
+    PHPTag0,
+    PHPTag1,
+    PHPTag2,
+    DoubleQuoteEscapeOctal3,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
+pub struct Position {
+    pub index: usize,
+    pub line: usize,
+    pub column: usize,
+}
+
+impl Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "Line {}, Column {}", self.line, self.column)
+    }
+}
+
+impl Position {
+    pub fn advance(&mut self, new_line: bool) {
+        self.index += 1;
+        if new_line {
+            self.line += 1;
+            self.column = 0;
+        } else {
+            self.column += 1;
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum FeedErrorKind {
@@ -194,50 +278,50 @@ pub fn feed<I: IntoIterator<Item = char>>(
                 ' ' | '\r' | '\n' | '\t' | ';' => {
                     d.push_back((*t, T::Identifier(b.clone())));
                     *s = S::Initial;
-                },
+                }
                 '/' => {
                     d.push_back((*t, T::Identifier(b.clone())));
                     *s = S::PrepareComment;
-                },
+                }
                 '[' => {
                     d.push_back((*t, T::Identifier(b.clone())));
                     d.push_back((*p, T::OpenSet));
                     *s = S::Initial;
-                },
+                }
                 ']' => {
                     d.push_back((*t, T::Identifier(b.clone())));
                     d.push_back((*p, T::CloseSet));
                     *s = S::Initial;
-                },
+                }
                 '=' => {
                     d.push_back((*t, T::Identifier(b.clone())));
                     *s = S::PrepareAssignment;
-                },
+                }
                 '\'' => {
                     d.push_back((*t, T::Identifier(b.clone())));
                     b.clear();
                     *t = *p;
                     *s = S::SingleQuote;
-                },
+                }
                 '"' => {
                     d.push_back((*t, T::Identifier(b.clone())));
                     b.clear();
                     *t = *p;
                     *s = S::DoubleQuote;
-                },
+                }
                 ',' => {
                     d.push_back((*t, T::Identifier(b.clone())));
                     d.push_back((*p, T::Separator));
                     *s = S::Initial;
-                },
+                }
                 '<' => {
                     d.push_back((*t, T::Identifier(b.clone())));
                     *s = S::PrepareOpenTag;
-                },
+                }
                 '?' => {
                     d.push_back((*t, T::Identifier(b.clone())));
                     *s = S::PrepareCloseTag;
-                },
+                }
                 '0'..='9' | '_' | 'a'..='z' | 'A'..='Z' => b.push(c),
                 _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
             },
@@ -507,12 +591,44 @@ pub fn feed<I: IntoIterator<Item = char>>(
 }
 
 pub fn eof(
-    state: &mut State,
-    position: &mut Position,
-    token_position: &mut Position,
-    buffer: &mut String,
-    codepoint: &mut u32,
-    dest: &mut Vec<(Position, Token)>,
+    state: State,
+    position: Position,
+    token_position: Position,
+    buffer: String,
+    dest: &mut VecDeque<(Position, Token)>,
 ) -> Result<(), FeedError> {
+    use FeedError as E;
+    use FeedErrorKind as K;
+    use State as S;
+    use Token as T;
+    let s = state;
+    let p = position;
+    let tp = token_position;
+    let b = buffer;
+    let d = dest;
+    match s {
+        S::Initial | S::LineComment | S::MultiLineComment | S::MultiLineCommentPrepareExit => (),
+        S::PrepareComment
+        | S::PrepareAssignment
+        | S::SingleQuote
+        | S::DoubleQuote
+        | S::IntegerDecimal
+        | S::PrepareOpenTag
+        | S::PrepareCloseTag
+        | S::SingleQuoteEscape
+        | S::DoubleQuoteEscape
+        | S::DoubleQuoteEscapeControl
+        | S::DoubleQuoteEscapeHex
+        | S::DoubleQuoteEscapeOctal2
+        | S::DoubleQuoteEscapeHexBound
+        | S::DoubleQuoteEscapeHex2
+        | S::PHPTag0
+        | S::PHPTag1
+        | S::PHPTag2
+        | S::DoubleQuoteEscapeOctal3 => return Err(E::new(p, s, K::EOF)),
+        S::Integer => d.push_back((tp, T::Integral(b))),
+        S::Identifier => d.push_back((tp, T::Identifier(b))),
+        S::Decimal => d.push_back((tp, T::Float(b))),
+    }
     Ok(())
 }
