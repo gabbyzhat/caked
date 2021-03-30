@@ -3,6 +3,7 @@ use std::convert::TryFrom;
 use std::fmt;
 use std::fmt::Display;
 use std::result::Result;
+use observitor::Observe;
 
 /// A lexer token.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,14 +137,14 @@ impl fmt::Display for FeedError {
 }
 
 /// Feeds source into lexer.
-pub fn feed<I: IntoIterator<Item = char>>(
+pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
     state: &mut State,
     position: &mut Position,
     token_position: &mut Position,
     buffer: &mut String,
     codepoint: &mut u32,
     source: I,
-    dest: &mut VecDeque<(Position, Token)>,
+    dest: &mut O,
 ) -> Result<(), FeedError> {
     use FeedErrorKind as K;
     use State as S;
@@ -160,8 +161,8 @@ pub fn feed<I: IntoIterator<Item = char>>(
             S::Initial => match c {
                 ' ' | '\r' | '\n' | '\t' => (),
                 '/' => *s = S::PrepareComment,
-                '[' => d.push_back((*p, T::OpenSet)),
-                ']' => d.push_back((*p, T::CloseSet)),
+                '[' => d.update((*p, T::OpenSet)),
+                ']' => d.update((*p, T::CloseSet)),
                 '=' => *s = S::PrepareAssignment,
                 '\'' => {
                     *t = *p;
@@ -183,7 +184,7 @@ pub fn feed<I: IntoIterator<Item = char>>(
                     b.push(c);
                     *s = S::Identifier;
                 }
-                ',' => d.push_back((*p, T::Separator)),
+                ',' => d.update((*p, T::Separator)),
                 '<' => *s = S::PrepareOpenTag,
                 '?' => *s = S::PrepareCloseTag,
                 _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
@@ -195,14 +196,14 @@ pub fn feed<I: IntoIterator<Item = char>>(
             },
             S::PrepareAssignment => match c {
                 '>' => {
-                    d.push_back((*p, T::Assignment));
+                    d.update((*p, T::Assignment));
                     *s = S::Initial;
                 }
                 _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
             },
             S::SingleQuote => match c {
                 '\'' => {
-                    d.push_back((*t, T::SingleQuote(b.clone())));
+                    d.update((*t, T::SingleQuote(b.clone())));
                     *s = S::Initial;
                 }
                 '\\' => *s = S::SingleQuoteEscape,
@@ -210,7 +211,7 @@ pub fn feed<I: IntoIterator<Item = char>>(
             },
             S::DoubleQuote => match c {
                 '"' => {
-                    d.push_back((*t, T::DoubleQuote(b.clone())));
+                    d.update((*t, T::DoubleQuote(b.clone())));
                     *s = S::Initial;
                 }
                 '\\' => *s = S::DoubleQuoteEscape,
@@ -218,40 +219,40 @@ pub fn feed<I: IntoIterator<Item = char>>(
             },
             S::Integer => match c {
                 ' ' | '\r' | '\n' | '\t' | ';' => {
-                    d.push_back((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Integral(b.clone())));
                     *s = S::Initial;
                 }
                 '/' => {
-                    d.push_back((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Integral(b.clone())));
                     *s = S::PrepareComment;
                 }
                 '[' => {
-                    d.push_back((*t, T::Integral(b.clone())));
-                    d.push_back((*p, T::OpenSet));
+                    d.update((*t, T::Integral(b.clone())));
+                    d.update((*p, T::OpenSet));
                     *s = S::Initial;
                 }
                 ']' => {
-                    d.push_back((*t, T::Integral(b.clone())));
-                    d.push_back((*p, T::CloseSet));
+                    d.update((*t, T::Integral(b.clone())));
+                    d.update((*p, T::CloseSet));
                     *s = S::Initial;
                 }
                 '=' => {
-                    d.push_back((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Integral(b.clone())));
                     *s = S::PrepareAssignment;
                 }
                 '\'' => {
-                    d.push_back((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Integral(b.clone())));
                     b.clear();
                     *t = *p;
                     *s = S::SingleQuote;
                 }
                 ',' => {
-                    d.push_back((*t, T::Integral(b.clone())));
-                    d.push_back((*p, T::Separator));
+                    d.update((*t, T::Integral(b.clone())));
+                    d.update((*p, T::Separator));
                     *s = S::Initial;
                 }
                 '"' => {
-                    d.push_back((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Integral(b.clone())));
                     b.clear();
                     *t = *p;
                     *s = S::DoubleQuote;
@@ -276,50 +277,50 @@ pub fn feed<I: IntoIterator<Item = char>>(
             },
             S::Identifier => match c {
                 ' ' | '\r' | '\n' | '\t' | ';' => {
-                    d.push_back((*t, T::Identifier(b.clone())));
+                    d.update((*t, T::Identifier(b.clone())));
                     *s = S::Initial;
                 }
                 '/' => {
-                    d.push_back((*t, T::Identifier(b.clone())));
+                    d.update((*t, T::Identifier(b.clone())));
                     *s = S::PrepareComment;
                 }
                 '[' => {
-                    d.push_back((*t, T::Identifier(b.clone())));
-                    d.push_back((*p, T::OpenSet));
+                    d.update((*t, T::Identifier(b.clone())));
+                    d.update((*p, T::OpenSet));
                     *s = S::Initial;
                 }
                 ']' => {
-                    d.push_back((*t, T::Identifier(b.clone())));
-                    d.push_back((*p, T::CloseSet));
+                    d.update((*t, T::Identifier(b.clone())));
+                    d.update((*p, T::CloseSet));
                     *s = S::Initial;
                 }
                 '=' => {
-                    d.push_back((*t, T::Identifier(b.clone())));
+                    d.update((*t, T::Identifier(b.clone())));
                     *s = S::PrepareAssignment;
                 }
                 '\'' => {
-                    d.push_back((*t, T::Identifier(b.clone())));
+                    d.update((*t, T::Identifier(b.clone())));
                     b.clear();
                     *t = *p;
                     *s = S::SingleQuote;
                 }
                 '"' => {
-                    d.push_back((*t, T::Identifier(b.clone())));
+                    d.update((*t, T::Identifier(b.clone())));
                     b.clear();
                     *t = *p;
                     *s = S::DoubleQuote;
                 }
                 ',' => {
-                    d.push_back((*t, T::Identifier(b.clone())));
-                    d.push_back((*p, T::Separator));
+                    d.update((*t, T::Identifier(b.clone())));
+                    d.update((*p, T::Separator));
                     *s = S::Initial;
                 }
                 '<' => {
-                    d.push_back((*t, T::Identifier(b.clone())));
+                    d.update((*t, T::Identifier(b.clone())));
                     *s = S::PrepareOpenTag;
                 }
                 '?' => {
-                    d.push_back((*t, T::Identifier(b.clone())));
+                    d.update((*t, T::Identifier(b.clone())));
                     *s = S::PrepareCloseTag;
                 }
                 '0'..='9' | '_' | 'a'..='z' | 'A'..='Z' => b.push(c),
@@ -350,40 +351,40 @@ pub fn feed<I: IntoIterator<Item = char>>(
             },
             S::Decimal => match c {
                 ' ' | '\r' | '\n' | '\t' | ';' => {
-                    d.push_back((*t, T::Float(b.clone())));
+                    d.update((*t, T::Float(b.clone())));
                     *s = S::Initial;
                 }
                 '/' => {
-                    d.push_back((*t, T::Float(b.clone())));
+                    d.update((*t, T::Float(b.clone())));
                     *s = S::PrepareComment;
                 }
                 '[' => {
-                    d.push_back((*t, T::Float(b.clone())));
-                    d.push_back((*p, T::OpenSet));
+                    d.update((*t, T::Float(b.clone())));
+                    d.update((*p, T::OpenSet));
                     *s = S::Initial;
                 }
                 ']' => {
-                    d.push_back((*t, T::Float(b.clone())));
-                    d.push_back((*p, T::CloseSet));
+                    d.update((*t, T::Float(b.clone())));
+                    d.update((*p, T::CloseSet));
                     *s = S::Initial;
                 }
                 '=' => {
-                    d.push_back((*t, T::Float(b.clone())));
+                    d.update((*t, T::Float(b.clone())));
                     *s = S::PrepareAssignment;
                 }
                 '\'' => {
-                    d.push_back((*t, T::Float(b.clone())));
+                    d.update((*t, T::Float(b.clone())));
                     b.clear();
                     *t = *p;
                     *s = S::SingleQuote;
                 }
                 ',' => {
-                    d.push_back((*t, T::Float(b.clone())));
-                    d.push_back((*p, T::Separator));
+                    d.update((*t, T::Float(b.clone())));
+                    d.update((*p, T::Separator));
                     *s = S::Initial;
                 }
                 '"' => {
-                    d.push_back((*t, T::Float(b.clone())));
+                    d.update((*t, T::Float(b.clone())));
                     b.clear();
                     *t = *p;
                     *s = S::DoubleQuote;
@@ -492,7 +493,7 @@ pub fn feed<I: IntoIterator<Item = char>>(
                 }
                 '"' => {
                     b.push(u8::try_from(*cp).unwrap().into());
-                    d.push_back((*t, T::DoubleQuote(b.clone())));
+                    d.update((*t, T::DoubleQuote(b.clone())));
                     *s = S::Initial;
                 }
                 _ => {
@@ -542,7 +543,7 @@ pub fn feed<I: IntoIterator<Item = char>>(
                 }
                 '"' => {
                     b.push(u8::try_from(*cp).unwrap().into());
-                    d.push_back((*t, T::DoubleQuote(b.clone())));
+                    d.update((*t, T::DoubleQuote(b.clone())));
                     *s = S::Initial;
                 }
                 _ => {
@@ -576,7 +577,7 @@ pub fn feed<I: IntoIterator<Item = char>>(
                 }
                 '"' => {
                     b.push(u8::try_from(*cp).unwrap().into());
-                    d.push_back((*t, T::DoubleQuote(b.clone())));
+                    d.update((*t, T::DoubleQuote(b.clone())));
                     *s = S::Initial;
                 }
                 _ => {
@@ -590,12 +591,12 @@ pub fn feed<I: IntoIterator<Item = char>>(
     Ok(())
 }
 
-pub fn eof(
+pub fn eof<O: Observe<(Position, Token)>>(
     state: State,
     position: Position,
     token_position: Position,
     buffer: String,
-    dest: &mut VecDeque<(Position, Token)>,
+    dest: &mut O,
 ) -> Result<(), FeedError> {
     use FeedError as E;
     use FeedErrorKind as K;
@@ -626,9 +627,9 @@ pub fn eof(
         | S::PHPTag1
         | S::PHPTag2
         | S::DoubleQuoteEscapeOctal3 => return Err(E::new(p, s, K::EOF)),
-        S::Integer => d.push_back((tp, T::Integral(b))),
-        S::Identifier => d.push_back((tp, T::Identifier(b))),
-        S::Decimal => d.push_back((tp, T::Float(b))),
+        S::Integer => d.update((tp, T::Integral(b))),
+        S::Identifier => d.update((tp, T::Identifier(b))),
+        S::Decimal => d.update((tp, T::Float(b))),
     }
     Ok(())
 }
