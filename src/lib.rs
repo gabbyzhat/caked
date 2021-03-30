@@ -12,9 +12,6 @@
 
 pub mod lex;
 
-mod data;
-pub use data::{Integral, Floating};
-
 /// Pair-Set datra.
 pub mod pairset;
 
