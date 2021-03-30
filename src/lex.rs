@@ -1,9 +1,10 @@
+use observitor::Observe;
 use std::collections::VecDeque;
 use std::convert::TryFrom;
+use std::default::Default;
 use std::fmt;
 use std::fmt::Display;
 use std::result::Result;
-use observitor::Observe;
 
 /// A lexer token.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,11 +65,29 @@ pub enum State {
     DoubleQuoteEscapeOctal3,
 }
 
+impl Default for State {
+    fn default() -> Self {
+        Self::Initial
+    }
+}
+
+/// A token position.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
 pub struct Position {
+    /// Absolute position of the token.
     pub index: usize,
+    
+    /// Line of the token.
     pub line: usize,
+
+    /// Column on the line.
     pub column: usize,
+}
+
+impl Default for Position {
+    fn default() -> Self {
+        Self::new(0, 0, 0)
+    }
 }
 
 impl Display for Position {
@@ -78,6 +97,13 @@ impl Display for Position {
 }
 
 impl Position {
+    pub fn new(index: usize, line: usize, column: usize) -> Self {
+        Self {
+            index,
+            line,
+            column,
+        }
+    }
     pub fn advance(&mut self, new_line: bool) {
         self.index += 1;
         if new_line {
@@ -100,7 +126,7 @@ pub enum FeedErrorKind {
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct FeedError {
     pub position: Position,
-    pub state: State,
+    state: State,
     pub got: FeedErrorKind,
 }
 

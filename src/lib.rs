@@ -15,7 +15,9 @@ pub(crate) mod lex;
 /// Key-value pair.
 pub(crate) mod kvp;
 
-pub use kvp::{Value, KeyValuePair};
-pub fn read() {
+pub(crate) mod deser;
 
-}
+pub use lex::{FeedError, FeedErrorKind, Position};
+pub use kvp::{Value, KeyValuePair};
+pub use deser::{deser_str, DeserError};
+

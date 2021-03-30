@@ -8,7 +8,7 @@ pub enum Value {
     Bool(bool),
 
     /// Integral.
-    Int(i32),
+    Int(i64),
 
     /// Floating point.
     Float(f64),
@@ -35,4 +35,10 @@ pub struct KeyValuePair {
 
     /// The value of this node.
     pub value: Value,
+}
+
+impl KeyValuePair {
+    pub fn new(key: Option<String>, value: Value) -> Self {
+        Self { key, value }
+    }
 }
