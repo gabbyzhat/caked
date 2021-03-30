@@ -143,7 +143,76 @@ pub(crate) fn feed<I: IntoIterator<Item = char>>(
                 '-' | '.' => {
                     b.push(c);
                     *s = S::Decimal;
-                }
+                } 
+                _ => return Err(FeedError::new(*p, *s, Some(c))),
+            },
+            S::IntegerDecimal => match c {
+                '0'..='9' => {
+                    b.push(c);
+                    *s = S::Integer;
+                },
+                '.' => {
+                    b.push('.');
+                    *s = S::Decimal;
+                },
+                _ => return Err(FeedError::new(*p, *s, Some(c))),
+            },
+            S::PrepareCloseTag => match c {
+                '>' => *s = S::Initial,
+                _ => return Err(FeedError::new(*p, *s, Some(c))),
+            },
+            S::LineComment => if c == '\n' {
+                *s = S::Initial
+            },
+            S::MultiLineComment => if c == '*' {
+                *s = S::MultiLineCommentPrepareExit
+            },
+            S::MultiLineCommentPrepareExit => match c {
+                '*' => (),
+                '/' => *s = S::Initial,
+                _ => *s = S::MultiLineComment,
+            },
+            S::Decimal => match c {
+                ' ' | '\r' | '\n' | '\t' | ';' => {
+                    d.push((*t, T::Float(b.clone())));
+                    *s = S::Initial;
+                },
+                '/' => {
+                    d.push((*t, T::Float(b.clone())));
+                    *s = S::PrepareComment;
+                },
+                '[' => {
+                    d.push((*t, T::Float(b.clone())));
+                    d.push((*p, T::OpenSet));
+                    *s = S::Initial;
+                },
+                ']' => {
+                    d.push((*t, T::Float(b.clone())));
+                    d.push((*p, T::CloseSet));
+                    *s = S::Initial;
+                },
+                '=' => {
+                    d.push((*t, T::Float(b.clone())));
+                    *s = S::PrepareAssignment;
+                },
+                '\'' => {
+                    d.push((*t, T::Float(b.clone())));
+                    b.clear();
+                    *t = *p;
+                    *s = S::SingleQuote;
+                },
+                ',' => {
+                    d.push((*t, T::Float(b.clone())));
+                    d.push((*p, T::Separator));
+                    *s = S::Initial;
+                },
+                '"' => {
+                    d.push((*t, T::Float(b.clone())));;
+                    b.clear();
+                    *t = *p;
+                    *s = S::DoubleQuote;
+                },
+                '0'..='0' | 'E' | 'e' | '+' | '-' | '.' => b.push(c),
                 _ => return Err(FeedError::new(*p, *s, Some(c))),
             },
             _ => (),

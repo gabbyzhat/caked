@@ -1,7 +1,5 @@
-use crate::{Floating, Integral};
-
 /// A value of a node.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Value {
     /// Null.
     Null,
@@ -10,16 +8,23 @@ pub enum Value {
     Bool(bool),
 
     /// Integral.
-    Int(Integral),
+    Int(i32),
 
     /// Floating point.
-    Float(Floating),
+    Float(f64),
 
     /// String.
     Str(String),
 
     /// Set of nodes.
     Set(Vec<KeyValuePair>),
+}
+
+impl Eq for Value {}
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
 }
 
 /// A graph node.
@@ -31,4 +36,3 @@ pub struct KeyValuePair {
     /// The value of this node.
     pub value: Value,
 }
-
