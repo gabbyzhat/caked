@@ -115,7 +115,7 @@ impl Position {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, PartialOrd, Ord)]
 pub enum FeedErrorKind {
     EOF,
     Unexpected(char),
@@ -123,7 +123,7 @@ pub enum FeedErrorKind {
 }
 
 /// A feed error.
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, PartialOrd, Ord)]
 pub struct FeedError {
     pub position: Position,
     state: State,

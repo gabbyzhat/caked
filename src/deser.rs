@@ -1,29 +1,60 @@
+use std::fs::File;
+use std::path::Path;
 use crate::kvp::{KeyValuePair, Value};
-use crate::lex::{eof, feed, FeedError, Position, State, Token};
-use observitor::Observe;
+use crate::lex::{eof, feed, FeedError, FeedErrorKind, Position, State, Token};
 use std::collections::VecDeque;
 use std::mem::swap;
 use std::str::FromStr;
+use std::io::Read;
 
-#[derive(Debug)]
-pub enum DeserError {
+/// Deserialization error kind.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DeserErrorKind {
     /// Lexer feed error.
-    Feed(FeedError),
+    Feed(FeedErrorKind),
+
+    /// Unexpected identifier token.
     UnexpectedIdentifier(String),
+
+    /// Invalid key token.
     InvalidKey,
+
+    /// Missing comma.
     MissingComma,
     FloatCast(String),
     IntCast(String),
 }
 
+/// Deserialization error.
+#[derive(Debug, Clone)]
+pub struct DeserError {
+    pub position: Position,
+    pub kind: DeserErrorKind,
+}
+
+impl DeserError {
+    pub fn new(position: Position, kind: DeserErrorKind) -> Self {
+        Self { position, kind }
+    }
+}
+
 impl From<FeedError> for DeserError {
     fn from(err: FeedError) -> Self {
-        Self::Feed(err)
+        Self::new(err.position, DeserErrorKind::Feed(err.got))
     }
+}
+
+pub fn deser_file<P: AsRef<Path>>(path: P) -> Result<Vec<KeyValuePair>, DeserError> {
+    // we could do this streaming but utf-8 reading is weird
+    let mut f = File::open(path).unwrap();
+    let mut s = String::new();
+    f.read_to_string(&mut s).unwrap();
+    deser_str(&s)
 }
 
 pub fn deser_str(input: &str) -> Result<Vec<KeyValuePair>, DeserError> {
     use DeserError as E;
+    use DeserErrorKind as K;
     use Token as T;
     use Value as V;
     let mut tokens = VecDeque::new();
@@ -55,27 +86,27 @@ pub fn deser_str(input: &str) -> Result<Vec<KeyValuePair>, DeserError> {
         match t {
             T::Float(x) => {
                 if pair_set {
-                    return Err(E::MissingComma);
+                    return Err(E::new(p, K::MissingComma));
                 }
                 match f64::from_str(&x) {
                     Ok(v) => pair_value = V::Float(v),
-                    Err(_) => return Err(E::IntCast(x)),
+                    Err(_) => return Err(E::new(p, K::IntCast(x))),
                 }
                 pair_set = true;
             }
             T::Integral(x) => {
                 if pair_set {
-                    return Err(E::MissingComma);
+                    return Err(E::new(p, K::MissingComma));
                 }
                 match i64::from_str(&x) {
                     Ok(v) => pair_value = V::Int(v),
-                    Err(_) => return Err(E::IntCast(x)),
+                    Err(_) => return Err(E::new(p, K::IntCast(x))),
                 }
                 pair_set = true;
             }
             T::DoubleQuote(x) | T::SingleQuote(x) => {
                 if pair_set {
-                    return Err(E::MissingComma);
+                    return Err(E::new(p, K::MissingComma));
                 }
                 pair_value = V::Str(x);
                 pair_set = true;
@@ -85,43 +116,43 @@ pub fn deser_str(input: &str) -> Result<Vec<KeyValuePair>, DeserError> {
                 swap(&mut pv, &mut pair_value);
                 match pv {
                     V::Str(v) => pair_key = Some(v),
-                    _ => return Err(E::InvalidKey),
+                    _ => return Err(E::new(p, K::InvalidKey)),
                 }
 
                 pair_value = V::Null;
-                pair_set = true;
+                pair_set = false;
             }
             T::Identifier(x) => {
                 let lower = x.to_lowercase();
                 match lower.as_str() {
                     "true" => {
                         if pair_set {
-                            return Err(E::MissingComma);
+                            return Err(E::new(p, K::MissingComma));
                         }
                         pair_value = V::Bool(true);
                         pair_set = true;
                     }
                     "false" => {
                         if pair_set {
-                            return Err(E::MissingComma);
+                            return Err(E::new(p, K::MissingComma));
                         }
                         pair_value = V::Bool(false);
                         pair_set = true;
                     }
                     "null" => {
                         if pair_set {
-                            return Err(E::MissingComma);
+                            return Err(E::new(p, K::MissingComma));
                         }
                         pair_value = V::Null;
                         pair_set = true;
                     }
                     "return" => (),
-                    _ => return Err(E::UnexpectedIdentifier(x)),
+                    _ => return Err(E::new(p, K::UnexpectedIdentifier(x))),
                 }
             }
             T::OpenSet => {
                 if pair_set {
-                    return Err(E::MissingComma);
+                    return Err(E::new(p, K::MissingComma));
                 }
                 if !first_open {
                     let mut old_current: Vec<KeyValuePair> = Vec::new();
@@ -135,6 +166,7 @@ pub fn deser_str(input: &str) -> Result<Vec<KeyValuePair>, DeserError> {
                 }
             }
             T::Separator => {
+                println!("zeh");
                 if pair_set {
                     let mut old_pair_key = None;
                     let mut old_pair_value = V::Null;
