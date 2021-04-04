@@ -1,5 +1,4 @@
 use observitor::Observe;
-use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::default::Default;
 use std::fmt;
@@ -20,8 +19,8 @@ pub enum Token {
     /// Set closing. (])
     CloseSet,
 
-    /// Integral value.
-    Integral(String),
+    /// Integer value.
+    Int(String),
 
     /// Floating point value.
     Float(String),
@@ -76,10 +75,8 @@ impl Default for State {
 pub struct Position {
     /// Absolute position of the token.
     pub index: usize,
-    
     /// Line of the token.
     pub line: usize,
-
     /// Column on the line.
     pub column: usize,
 }
@@ -97,6 +94,7 @@ impl Display for Position {
 }
 
 impl Position {
+    /// Creates a new position.
     pub fn new(index: usize, line: usize, column: usize) -> Self {
         Self {
             index,
@@ -104,6 +102,8 @@ impl Position {
             column,
         }
     }
+
+    /// Advances the position.
     pub fn advance(&mut self, new_line: bool) {
         self.index += 1;
         if new_line {
@@ -115,40 +115,47 @@ impl Position {
     }
 }
 
+/// Kind of lexer error.
 #[derive(Debug, Clone, PartialEq, Eq, Copy, PartialOrd, Ord)]
-pub enum FeedErrorKind {
+pub enum LexErrorKind {
+    /// Premature end-of-file.
     EOF,
+    /// Unexpected character.
     Unexpected(char),
+    /// Invalid Unicode escape.
     InvalidUnicode(u32),
 }
 
-/// A feed error.
+/// Lexer error.
 #[derive(Debug, Clone, PartialEq, Eq, Copy, PartialOrd, Ord)]
-pub struct FeedError {
+pub struct LexError {
+    /// Position of error.
     pub position: Position,
     state: State,
-    pub got: FeedErrorKind,
+    /// Kind of error.
+    pub kind: LexErrorKind,
 }
 
-impl FeedError {
-    pub fn new(position: Position, state: State, got: FeedErrorKind) -> Self {
+impl LexError {
+    /// Creates a new lexer error.
+    pub fn new(position: Position, state: State, kind: LexErrorKind) -> Self {
         Self {
             position,
             state,
-            got,
+            kind,
         }
     }
 }
 
-impl fmt::Display for FeedError {
+impl fmt::Display for LexError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         let Self {
             position,
             state,
-            got,
+            kind,
         } = self;
-        use FeedErrorKind as K;
-        match got {
+        use LexErrorKind as K;
+        match kind {
             K::Unexpected('\n') => write!(f, "Unexpected new line"),
             K::Unexpected('\r') => write!(f, "Unexpected carriage return"),
             K::Unexpected('\t') => write!(f, "Unexpected tab"),
@@ -162,8 +169,8 @@ impl fmt::Display for FeedError {
     }
 }
 
-/// Feeds source into lexer.
-pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
+/// Feeds characters into lexer.
+pub fn lex<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
     state: &mut State,
     position: &mut Position,
     token_position: &mut Position,
@@ -171,8 +178,8 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
     codepoint: &mut u32,
     source: I,
     dest: &mut O,
-) -> Result<(), FeedError> {
-    use FeedErrorKind as K;
+) -> Result<(), LexError> {
+    use LexErrorKind as K;
     use State as S;
     use Token as T;
     let s = state;
@@ -213,19 +220,19 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
                 ',' => d.update((*p, T::Separator)),
                 '<' => *s = S::PrepareOpenTag,
                 '?' => *s = S::PrepareCloseTag,
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::PrepareComment => match c {
                 '/' => *s = S::LineComment,
                 '*' => *s = S::MultiLineComment,
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::PrepareAssignment => match c {
                 '>' => {
                     d.update((*p, T::Assignment));
                     *s = S::Initial;
                 }
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::SingleQuote => match c {
                 '\'' => {
@@ -245,40 +252,40 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
             },
             S::Integer => match c {
                 ' ' | '\r' | '\n' | '\t' | ';' => {
-                    d.update((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Int(b.clone())));
                     *s = S::Initial;
                 }
                 '/' => {
-                    d.update((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Int(b.clone())));
                     *s = S::PrepareComment;
                 }
                 '[' => {
-                    d.update((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Int(b.clone())));
                     d.update((*p, T::OpenSet));
                     *s = S::Initial;
                 }
                 ']' => {
-                    d.update((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Int(b.clone())));
                     d.update((*p, T::CloseSet));
                     *s = S::Initial;
                 }
                 '=' => {
-                    d.update((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Int(b.clone())));
                     *s = S::PrepareAssignment;
                 }
                 '\'' => {
-                    d.update((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Int(b.clone())));
                     b.clear();
                     *t = *p;
                     *s = S::SingleQuote;
                 }
                 ',' => {
-                    d.update((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Int(b.clone())));
                     d.update((*p, T::Separator));
                     *s = S::Initial;
                 }
                 '"' => {
-                    d.update((*t, T::Integral(b.clone())));
+                    d.update((*t, T::Int(b.clone())));
                     b.clear();
                     *t = *p;
                     *s = S::DoubleQuote;
@@ -288,7 +295,7 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
                     b.push(c);
                     *s = S::Decimal;
                 }
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::IntegerDecimal => match c {
                 '0'..='9' => {
@@ -299,7 +306,7 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
                     b.push('.');
                     *s = S::Decimal;
                 }
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::Identifier => match c {
                 ' ' | '\r' | '\n' | '\t' | ';' => {
@@ -350,15 +357,15 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
                     *s = S::PrepareCloseTag;
                 }
                 '0'..='9' | '_' | 'a'..='z' | 'A'..='Z' => b.push(c),
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::PrepareOpenTag => match c {
                 '?' => *s = S::PHPTag0,
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::PrepareCloseTag => match c {
                 '>' => *s = S::Initial,
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::LineComment => {
                 if c == '\n' {
@@ -416,7 +423,7 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
                     *s = S::DoubleQuote;
                 }
                 '0'..='0' | 'E' | 'e' | '+' | '-' | '.' => b.push(c),
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::SingleQuoteEscape => match c {
                 '\\' | '\'' => {
@@ -475,7 +482,7 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
                     *cp = (c as u32) - ('0' as u32);
                     *s = S::DoubleQuoteEscapeOctal2;
                 }
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::DoubleQuoteEscapeControl => {
                 match char::try_from((c.to_uppercase().next().unwrap() as u32) ^ 0x60) {
@@ -484,7 +491,7 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
                         *s = S::DoubleQuote;
                     }
                     Err(_) => {
-                        return Err(FeedError::new(
+                        return Err(LexError::new(
                             *p,
                             *s,
                             K::InvalidUnicode((c.to_uppercase().next().unwrap() as u32) ^ 0x60),
@@ -506,7 +513,7 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
                     *cp = *cp | ((c as u32) - 'A' as u32);
                     *s = S::DoubleQuoteEscapeHex2;
                 }
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::DoubleQuoteEscapeOctal2 => match c {
                 '0'..='7' => {
@@ -543,9 +550,9 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
                 }
                 '}' => match char::try_from(*cp) {
                     Ok(x) => b.push(x),
-                    Err(_) => return Err(FeedError::new(*p, *s, K::InvalidUnicode(*cp))),
+                    Err(_) => return Err(LexError::new(*p, *s, K::InvalidUnicode(*cp))),
                 },
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::DoubleQuoteEscapeHex2 => match c {
                 '0'..='9' => {
@@ -581,15 +588,15 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
             S::PHPTag0 => match c {
                 '=' => *s = S::Initial,
                 'p' => *s = S::PHPTag1,
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::PHPTag1 => match c {
                 'h' => *s = S::PHPTag2,
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::PHPTag2 => match c {
                 'p' => *s = S::Initial,
-                _ => return Err(FeedError::new(*p, *s, K::Unexpected(c))),
+                _ => return Err(LexError::new(*p, *s, K::Unexpected(c))),
             },
             S::DoubleQuoteEscapeOctal3 => match c {
                 '0'..='7' => {
@@ -617,15 +624,16 @@ pub fn feed<I: IntoIterator<Item = char>, O: Observe<(Position, Token)>>(
     Ok(())
 }
 
+/// Feeds end-of-file into lexer.
 pub fn eof<O: Observe<(Position, Token)>>(
     state: State,
     position: Position,
     token_position: Position,
     buffer: String,
     dest: &mut O,
-) -> Result<(), FeedError> {
-    use FeedError as E;
-    use FeedErrorKind as K;
+) -> Result<(), LexError> {
+    use LexError as E;
+    use LexErrorKind as K;
     use State as S;
     use Token as T;
     let s = state;
@@ -653,7 +661,7 @@ pub fn eof<O: Observe<(Position, Token)>>(
         | S::PHPTag1
         | S::PHPTag2
         | S::DoubleQuoteEscapeOctal3 => return Err(E::new(p, s, K::EOF)),
-        S::Integer => d.update((tp, T::Integral(b))),
+        S::Integer => d.update((tp, T::Int(b))),
         S::Identifier => d.update((tp, T::Identifier(b))),
         S::Decimal => d.update((tp, T::Float(b))),
     }

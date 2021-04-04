@@ -1,17 +1,17 @@
-use std::fs::File;
-use std::path::Path;
 use crate::kvp::{KeyValuePair, Value};
-use crate::lex::{eof, feed, FeedError, FeedErrorKind, Position, State, Token};
+use crate::lex::{eof, lex, LexError, LexErrorKind, Position, State, Token};
 use std::collections::VecDeque;
-use std::mem::swap;
-use std::str::FromStr;
+use std::fs::File;
 use std::io::Read;
+use std::mem::swap;
+use std::path::Path;
+use std::str::FromStr;
 
 /// Deserialization error kind.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DeserErrorKind {
-    /// Lexer feed error.
-    Feed(FeedErrorKind),
+    /// Lexer Lex error.
+    Lex(LexErrorKind),
 
     /// Unexpected identifier token.
     UnexpectedIdentifier(String),
@@ -21,29 +21,38 @@ pub enum DeserErrorKind {
 
     /// Missing comma.
     MissingComma,
+
+    /// Float casting error.
     FloatCast(String),
+
+    /// Integer casting error.
     IntCast(String),
 }
 
 /// Deserialization error.
 #[derive(Debug, Clone)]
 pub struct DeserError {
+    /// Token position.
     pub position: Position,
+
+    /// Error kind.
     pub kind: DeserErrorKind,
 }
 
 impl DeserError {
+    /// Creates a new deserialization error.
     pub fn new(position: Position, kind: DeserErrorKind) -> Self {
         Self { position, kind }
     }
 }
 
-impl From<FeedError> for DeserError {
-    fn from(err: FeedError) -> Self {
-        Self::new(err.position, DeserErrorKind::Feed(err.got))
+impl From<LexError> for DeserError {
+    fn from(err: LexError) -> Self {
+        Self::new(err.position, DeserErrorKind::Lex(err.kind))
     }
 }
 
+/// Deserialize from a file.
 pub fn deser_file<P: AsRef<Path>>(path: P) -> Result<Vec<KeyValuePair>, DeserError> {
     // we could do this streaming but utf-8 reading is weird
     let mut f = File::open(path).unwrap();
@@ -52,6 +61,7 @@ pub fn deser_file<P: AsRef<Path>>(path: P) -> Result<Vec<KeyValuePair>, DeserErr
     deser_str(&s)
 }
 
+/// Deserialize from a string.
 pub fn deser_str(input: &str) -> Result<Vec<KeyValuePair>, DeserError> {
     use DeserError as E;
     use DeserErrorKind as K;
@@ -64,7 +74,7 @@ pub fn deser_str(input: &str) -> Result<Vec<KeyValuePair>, DeserError> {
         let mut tp = Position::default();
         let mut b = String::new();
         let mut cp = 0;
-        feed(
+        lex(
             &mut s,
             &mut p,
             &mut tp,
@@ -94,7 +104,7 @@ pub fn deser_str(input: &str) -> Result<Vec<KeyValuePair>, DeserError> {
                 }
                 pair_set = true;
             }
-            T::Integral(x) => {
+            T::Int(x) => {
                 if pair_set {
                     return Err(E::new(p, K::MissingComma));
                 }

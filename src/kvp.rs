@@ -37,7 +37,7 @@ impl Display for Value {
                 } else {
                     write!(f, "{}.0", s)
                 }
-            },
+            }
             V::Str(x) => write!(f, "{}", php_str(x)),
             V::Set(x) => {
                 write!(f, "[")?;
@@ -45,18 +45,17 @@ impl Display for Value {
                     write!(f, "{},", kvp)?;
                 }
                 write!(f, "]")
-            },
+            }
         }
     }
 }
-
-
 
 enum PHPStringState {
     Undecided,
     UndecidedEscape,
     Decided,
 }
+
 fn php_str(input: &str) -> String {
     use PHPStringState as P;
     let mut d = String::new();
@@ -225,8 +224,21 @@ pub struct KeyValuePair {
 }
 
 impl KeyValuePair {
+    /// Creates a new key-value pair.
     pub fn new(key: Option<String>, value: Value) -> Self {
         Self { key, value }
+    }
+
+    /// Applies the key prefix, if any
+    pub fn key_prefix(&self) -> String {
+        if let Some(key) = &self.key {
+            let mut buf = String::new();
+            buf.push_str(&php_str(key));
+            buf.push_str(" => ");
+            buf
+        } else {
+            String::new()
+        }
     }
 }
 
