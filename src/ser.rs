@@ -7,74 +7,78 @@ use crate::{KeyValuePair, Value};
 pub fn ser_str(output: &[KeyValuePair]) -> String {
     let mut tabs = String::from("\t");
     let mut buf = String::new();
-    write!(buf, "<?php\nreturn [\n");
+    buf.push_str("<?php\nreturn [\n");
     ser_str_ex(output, &mut tabs, &mut buf);
-    write!(buf, "];\n");
+    buf.push_str("];\n");
     buf
 }
 
 fn ser_str_ex(output: &[KeyValuePair], tabs: &mut String, buf: &mut String) {
     for kvp in output {
-        write!(buf, "{}{}", tabs, kvp.key_prefix());
+        buf.push_str(&tabs);
+        buf.push_str(&kvp.key_prefix());
 
         match &kvp.value {
             Value::Set(put) => {
                 if put.is_empty() {
-                    write!(buf, "[]");
+                    buf.push_str("[]");
                 } else {
-                    write!(buf, "[");
+                    buf.push('[');
                     tabs.push('\t');
                     ser_str_ex(&put, tabs, buf);
                     tabs.pop();
-                    write!(buf, "]");
+                    buf.push(']');
                 }
             }
             x => {
-                write!(buf, "{}", x);
+                buf.push_str(&format!("{}", x));
             }
         }
-        write!(buf, ",\n")
+        buf.push_str(",\n")
     }
 }
 
 /// todo
-pub fn ser_file<P: AsRef<Path>>(output: &[KeyValuePair], path: P) {
-    let mut buf = File::create(path).unwrap();
+pub fn ser_file<P: AsRef<Path>>(output: &[KeyValuePair], path: P) -> std::io::Result<()> {
+    let mut buf = File::create(path)?;
     let mut tabs = String::from("\t");
-    write!(buf, "<?php\nreturn [\n");
-    ser_buf_ex(output, &mut tabs, &mut buf);
-    write!(buf, "];\n");
+    write!(&mut buf, "<?php\nreturn [\n")?;
+    ser_buf_ex(output, &mut tabs, &mut buf)?;
+    write!(&mut buf, "];\n")?;
+    Ok(())
 }
 
 /// todo
-pub fn ser_write<W: Write>(output: &[KeyValuePair], mut buf: W) {
+pub fn ser_write<W: Write>(output: &[KeyValuePair], mut buf: W) -> std::io::Result<()> {
     let mut tabs = String::from("\t");
-    write!(buf, "<?php\nreturn [\n");
-    ser_buf_ex(output, &mut tabs, &mut buf);
-    write!(buf, "];\n");
+    write!(&mut buf, "<?php\nreturn [\n")?;
+    ser_buf_ex(output, &mut tabs, &mut buf)?;
+    write!(&mut buf, "];\n")?;
+    Ok(())
 }
 
 
-fn ser_buf_ex<W: Write>(output: &[KeyValuePair], tabs: &mut String, mut buf: W) {
+fn ser_buf_ex<W: Write>(output: &[KeyValuePair], tabs: &mut String, mut buf: W) -> std::io::Result<()> {
     for kvp in output {
-        write!(buf, "{}{}", tabs, kvp.key_prefix());
+        write!(&mut buf, "{}{}", tabs, kvp.key_prefix())?;
 
         match &kvp.value {
             Value::Set(put) => {
                 if put.is_empty() {
-                    write!(buf, "[]");
+                    write!(&mut buf, "[]")?;
                 } else {
-                    write!(buf, "[");
+                    write!(&mut buf, "[")?;
                     tabs.push('\t');
-                    ser_buf_ex(&put, tabs, buf);
+                    ser_buf_ex(&put, tabs, &mut buf)?;
                     tabs.pop();
-                    write!(buf, "]");
+                    write!(&mut buf, "]")?;
                 }
             }
             x => {
-                write!(buf, "{}", x);
+                write!(&mut buf, "{}", x)?;
             }
         }
-        write!(buf, ",\n")
+        write!(&mut buf, ",\n")?;
     }
+    Ok(())
 }
