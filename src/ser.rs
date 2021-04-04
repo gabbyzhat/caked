@@ -20,7 +20,7 @@ fn ser_str_ex(output: &[KeyValuePair], tabs: &mut String, buf: &mut String) {
         match &kvp.value {
             Value::Set(put) => {
                 if put.is_empty() {
-                    write!(buf, "[]")
+                    write!(buf, "[]");
                 } else {
                     write!(buf, "[");
                     tabs.push('\t');
@@ -62,7 +62,7 @@ fn ser_buf_ex<W: Write>(output: &[KeyValuePair], tabs: &mut String, mut buf: W) 
         match &kvp.value {
             Value::Set(put) => {
                 if put.is_empty() {
-                    write!(buf, "[]")
+                    write!(buf, "[]");
                 } else {
                     write!(buf, "[");
                     tabs.push('\t');
